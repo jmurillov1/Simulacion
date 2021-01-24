@@ -1,0 +1,84 @@
+import simpy
+import random
+import matplotlib.pyplot as pp
+
+% matplotlib inline
+
+# Maximo de pacientes que puede recibir el negocio
+MAX_PACIENTES = 57
+# Total de camas.
+NUM_CAMAS = 1
+# Tiempo que tarda en atenderse un paciente (minutos)
+TIEMPO_ATENCION = 15
+# Intervalo de tiempo en que llegan pacientes (minutos)
+INTERVALO_LLEGADA = 3
+# Tiempo de simulación
+TIEMPO_SIMULACION = 60
+
+# Creamos un diccionario para almacenar las horas en que se atienden los pacientes.
+tiempo = {}
+
+
+class Consultorio(object):
+
+    def __init__(self, environment, NUM_CAMAS, TIEMPO_ATENCION):
+        # Guardamos como variable el entorno de ejecucion
+        self.env = environment
+        # Creamos el recurso que representa las camas
+        self.camas = simpy.Resource(environment, NUM_CAMAS)
+        # Variable para el tiempo de atencion.
+        self.TIEMPO_ATENCION = TIEMPO_ATENCION
+
+    def atender_paciente(self, paciente):
+        # Este metodo representa el proceso de atencion al un cliente.
+        # Se ingresa el paciente y se atiende.
+
+        yield self.env.timeout(random.randint(TIEMPO_ATENCION - 5, TIEMPO_ATENCION + 5))
+
+        print('Atendiedo  {%d%%} atención paciente => %s ' % (random.randint(30, 90), paciente))
+
+
+def llegada_paciente(env, nombre, Consultorio):
+    # Usamos el reloj de la simulacion (env.now()) para indicar a la
+    # hora que llega el paciente con el nombre pasado como parametro
+    print('Llega paciente: %s a la hora %.2f.' % (nombre, env.now))
+
+    # Especificamos que vamos a usar un recurso (Resource) que representa
+    with Consultorio.camas.request() as maquina:
+        # Ocupamos la maquina de atencion.
+        yield maquina
+        # Indicamos que paciente entra a la Consultorio
+        print('Entra paciente a atenderse: %s a la hora %.2f.' % (nombre, env.now))
+        # Procesamos la operacion de atencion
+        yield env.process(Consultorio.atender_paciente(nombre))
+        # Una vez que termina la llamada con 'yield', se indica que se ha atendido al paciente.
+        print('paciente [%s] lavado a las %.2f.' % (nombre, env.now))
+
+        tiempo[nombre] = env.now
+
+
+def ejecutar_simulacion(env, NUM_CAMAS, TIEMPO_ATENCION, intervalo):
+    consultorio = Consultorio(env, NUM_CAMAS, TIEMPO_ATENCION)
+    # Creamos 5 llegadas de pacientes iniciales
+    for i in range(5):
+        env.process(llegada_paciente(env, 'paciente-%d' % (i + 1), consultorio))
+
+    # Ejecutamos la simulacion
+    while True:
+        yield env.timeout(random.randint(intervalo - 3, intervalo + 3))
+        i += 1
+        # Mientras se atiende a los pacientes generamos mas pacientes
+        env.process(llegada_paciente(env, 'paciente-%d' % (i + 1), consultorio))
+
+
+print('Consultorio UPS')
+
+# Creamos el entorno de simulacion
+env = simpy.Environment()
+env.process(ejecutar_simulacion(env, NUM_CAMAS, TIEMPO_ATENCION, INTERVALO_LLEGADA))
+
+# Ejecutamos el proceso durante el tiempo de simulacion
+env.run(until=TIEMPO_SIMULACION)
+
+print("Diccionario timepo :")
+print(tiempo)
